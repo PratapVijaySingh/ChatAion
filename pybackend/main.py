@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import asyncio
 from mcp_use import MCPAgent, MCPClient
@@ -10,6 +11,8 @@ from typing import List, Optional, Dict, Any
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import tempfile
+import openai
+import time
 
 app = FastAPI()
 
@@ -23,6 +26,13 @@ app.add_middleware(
 )
 
 MCP_FILE = "mcps.json"
+
+# Audio directory
+AUDIO_DIR = "audio_files"
+os.makedirs(AUDIO_DIR, exist_ok=True)
+
+# Serve static files
+app.mount("/api/audio", StaticFiles(directory=AUDIO_DIR), name="audio")
 
 class MCP(BaseModel):
     id: str
@@ -94,6 +104,44 @@ def delete_mcp(mcp_id: str):
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("pybackend")
+
+# TTS Functions
+async def generate_speech(text: str, voice_id: str, openai_key: str) -> Optional[str]:
+    """Generate speech using OpenAI TTS API"""
+    try:
+        client = openai.OpenAI(api_key=openai_key)
+        
+        # Map voice_id to OpenAI voice names
+        voice_mapping = {
+            'alloy': 'alloy',
+            'echo': 'echo', 
+            'fable': 'fable',
+            'onyx': 'onyx',
+            'nova': 'nova',
+            'shimmer': 'shimmer'
+        }
+        
+        openai_voice = voice_mapping.get(voice_id, 'alloy')
+        
+        response = client.audio.speech.create(
+            model="tts-1",
+            voice=openai_voice,
+            input=text
+        )
+        
+        # Generate unique filename
+        filename = f"speech_{int(time.time() * 1000)}_{voice_id}.mp3"
+        filepath = os.path.join(AUDIO_DIR, filename)
+        
+        # Save to audio directory
+        with open(filepath, 'wb') as f:
+            f.write(response.content)
+        
+        return filename  # Return just the filename, not full path
+            
+    except Exception as e:
+        logger.error(f"Error generating speech: {e}")
+        return None
 
 @app.post("/api/llm")
 async def llm_endpoint(req: LLMRequest):
@@ -291,17 +339,21 @@ async def generate_speech_endpoint(req: dict):
         if not openai_key:
             raise HTTPException(status_code=400, detail="OpenAI API key is required")
         
-        # For now, return a mock response since we don't have TTS implemented in main.py
-        # In a full implementation, this would generate actual speech
         logger.info(f"Speech generation requested: text={text[:50]}..., voice={voice_id}")
         
-        return {
-            "success": True,
-            "audio_url": None,  # No audio generated for now
-            "message": "Speech generation not implemented in main backend",
-            "text": text,
-            "voice_id": voice_id
-        }
+        # Generate actual speech using OpenAI TTS
+        audio_filename = await generate_speech(text, voice_id, openai_key)
+        
+        if audio_filename:
+            return {
+                "success": True,
+                "audio_url": f"/api/audio/{audio_filename}",
+                "filename": audio_filename,
+                "text": text,
+                "voice_id": voice_id
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to generate speech")
             
     except Exception as e:
         logger.error(f"Speech generation error: {e}")
