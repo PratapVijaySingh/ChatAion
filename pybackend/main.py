@@ -122,6 +122,41 @@ Please provide both the chart data in the above format AND a brief explanation o
     
     return message + chart_instructions
 
+def determine_animation_from_response(response_content: str) -> str:
+    """Determine appropriate animation based on response content"""
+    content_lower = response_content.lower()
+    
+    # Chart-related animations
+    if any(keyword in content_lower for keyword in ['chart', 'graph', 'visualization', 'plot']):
+        return "excited"
+    
+    # Error-related animations
+    if any(keyword in content_lower for keyword in ['error', 'sorry', 'unable', 'cannot', 'failed']):
+        return "concerned"
+    
+    # Success/completion animations
+    if any(keyword in content_lower for keyword in ['success', 'completed', 'done', 'finished', 'ready']):
+        return "happy"
+    
+    # Question/thinking animations
+    if any(keyword in content_lower for keyword in ['?', 'what', 'how', 'why', 'when', 'where']):
+        return "curious"
+    
+    # Excitement indicators
+    if any(keyword in content_lower for keyword in ['!', 'amazing', 'great', 'excellent', 'wonderful', 'fantastic']):
+        return "excited"
+    
+    # Greeting animations
+    if any(keyword in content_lower for keyword in ['hello', 'hi', 'hey', 'greetings', 'welcome']):
+        return "wave"
+    
+    # Data/analysis animations
+    if any(keyword in content_lower for keyword in ['data', 'analysis', 'results', 'statistics', 'report']):
+        return "analytical"
+    
+    # Default thinking animation
+    return "thinking"
+
 # Enable CORS for all origins and methods
 app.add_middleware(
     CORSMiddleware,
@@ -332,6 +367,10 @@ async def chat_send(req: ChatRequest):
         response = await llm.ainvoke(enhanced_message)
         logger.info(f"OpenAI chat response: {response.content!r}")
         
+        # Determine animation based on response content
+        animation = determine_animation_from_response(response.content)
+        logger.info(f"Determined animation: {animation}")
+        
         # Generate audio if requested
         audio_url = None
         if req.use_voice and req.voice_id:
@@ -341,7 +380,7 @@ async def chat_send(req: ChatRequest):
         
         return {
             "response": response.content,
-            "animation": "thinking",  # Default animation
+            "animation": animation,
             "audio_url": audio_url
         }
     except Exception as e:
@@ -415,6 +454,10 @@ async def mcp_send(req: ChatRequest):
         response = await agent.run(full_prompt)
         logger.info(f"MCP response: {response!r}")
         
+        # Determine animation based on response content
+        animation = determine_animation_from_response(response)
+        logger.info(f"Determined animation: {animation}")
+        
         # Generate audio if requested
         audio_url = None
         if req.use_voice and req.voice_id:
@@ -424,7 +467,7 @@ async def mcp_send(req: ChatRequest):
         
         return {
             "response": response,
-            "animation": "thinking",
+            "animation": animation,
             "audio_url": audio_url
         }
         
