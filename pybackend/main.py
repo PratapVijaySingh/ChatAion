@@ -315,15 +315,19 @@ def get_avatar_presets():
 
 @app.get("/api/audio/voices")
 def get_audio_voices():
-    """Mock audio voices endpoint"""
-    return [
-        {"voice_id": "alloy", "name": "Alloy"},
-        {"voice_id": "echo", "name": "Echo"},
-        {"voice_id": "fable", "name": "Fable"},
-        {"voice_id": "onyx", "name": "Onyx"},
-        {"voice_id": "nova", "name": "Nova"},
-        {"voice_id": "shimmer", "name": "Shimmer"}
-    ]
+    """Audio voices endpoint"""
+    return {
+        "openai": [
+            {"voice_id": "alloy", "name": "Alloy"},
+            {"voice_id": "echo", "name": "Echo"},
+            {"voice_id": "fable", "name": "Fable"},
+            {"voice_id": "onyx", "name": "Onyx"},
+            {"voice_id": "nova", "name": "Nova"},
+            {"voice_id": "shimmer", "name": "Shimmer"}
+        ],
+        "elevenlabs": [],
+        "azure": []
+    }
 
 @app.post("/api/audio/generate")
 async def generate_speech_endpoint(req: dict):
