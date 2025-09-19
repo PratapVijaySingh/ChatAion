@@ -13,8 +13,114 @@ import logging
 import tempfile
 import openai
 import time
+import re
 
 app = FastAPI()
+
+# Chart detection and prompting functions
+def is_chart_request(message: str) -> bool:
+    """Detect if the user is asking for a chart or visualization"""
+    chart_keywords = [
+        'chart', 'graph', 'plot', 'visualization', 'visualize', 'diagram',
+        'bar chart', 'line chart', 'pie chart', 'scatter plot', 'histogram',
+        'show data', 'display data', 'create a chart', 'make a graph',
+        'data visualization', 'plot the data', 'chart the data'
+    ]
+    
+    message_lower = message.lower()
+    return any(keyword in message_lower for keyword in chart_keywords)
+
+def get_chart_prompt(message: str) -> str:
+    """Enhance the user message with chart formatting instructions"""
+    chart_instructions = """
+
+IMPORTANT: Since you're asking for a chart/visualization, please provide your response in the following Chart.js JSON format:
+
+```chart
+{
+  "type": "bar|line|pie|doughnut",
+  "title": "Chart Title",
+  "data": {
+    "labels": ["Label1", "Label2", "Label3"],
+    "datasets": [{
+      "label": "Dataset Label",
+      "data": [value1, value2, value3],
+      "backgroundColor": "rgba(54, 162, 235, 0.6)",
+      "borderColor": "rgba(54, 162, 235, 1)",
+      "borderWidth": 1
+    }]
+  }
+}
+```
+
+Chart types available:
+- "bar": Bar chart for comparing categories
+- "line": Line chart for trends over time  
+- "pie": Pie chart for proportions
+- "doughnut": Doughnut chart for proportions with center space
+
+EXAMPLES:
+
+Bar Chart Example:
+```chart
+{
+  "type": "bar",
+  "title": "Sales by Month",
+  "data": {
+    "labels": ["Jan", "Feb", "Mar", "Apr", "May"],
+    "datasets": [{
+      "label": "Sales",
+      "data": [12000, 19000, 15000, 25000, 22000],
+      "backgroundColor": "rgba(54, 162, 235, 0.6)",
+      "borderColor": "rgba(54, 162, 235, 1)",
+      "borderWidth": 1
+    }]
+  }
+}
+```
+
+Line Chart Example:
+```chart
+{
+  "type": "line",
+  "title": "Website Traffic",
+  "data": {
+    "labels": ["Week 1", "Week 2", "Week 3", "Week 4"],
+    "datasets": [{
+      "label": "Visitors",
+      "data": [1000, 1200, 1100, 1400],
+      "backgroundColor": "rgba(75, 192, 192, 0.2)",
+      "borderColor": "rgba(75, 192, 192, 1)",
+      "borderWidth": 2
+    }]
+  }
+}
+```
+
+Pie Chart Example:
+```chart
+{
+  "type": "pie",
+  "title": "Market Share",
+  "data": {
+    "labels": ["Product A", "Product B", "Product C"],
+    "datasets": [{
+      "data": [40, 35, 25],
+      "backgroundColor": [
+        "rgba(255, 99, 132, 0.6)",
+        "rgba(54, 162, 235, 0.6)",
+        "rgba(255, 205, 86, 0.6)"
+      ]
+    }]
+  }
+}
+```
+
+Please provide both the chart data in the above format AND a brief explanation of the visualization.
+
+"""
+    
+    return message + chart_instructions
 
 # Enable CORS for all origins and methods
 app.add_middleware(
@@ -216,8 +322,14 @@ async def chat_send(req: ChatRequest):
     logger.info(f"Received /api/chat/send request: message={req.message!r}")
     
     try:
+        # Check if this is a chart request and enhance the prompt
+        enhanced_message = req.message
+        if is_chart_request(req.message):
+            logger.info("Chart request detected, enhancing prompt with chart instructions")
+            enhanced_message = get_chart_prompt(req.message)
+        
         llm = ChatOpenAI(model="gpt-4o", openai_api_key=openai_key)
-        response = await llm.ainvoke(req.message)
+        response = await llm.ainvoke(enhanced_message)
         logger.info(f"OpenAI chat response: {response.content!r}")
         
         # Generate audio if requested
@@ -294,6 +406,11 @@ async def mcp_send(req: ChatRequest):
             full_prompt = context + f"User: {req.message}"
         else:
             full_prompt = req.message
+        
+        # Check if this is a chart request and enhance the prompt
+        if is_chart_request(req.message):
+            logger.info("Chart request detected in MCP, enhancing prompt with chart instructions")
+            full_prompt = get_chart_prompt(full_prompt)
         
         response = await agent.run(full_prompt)
         logger.info(f"MCP response: {response!r}")
