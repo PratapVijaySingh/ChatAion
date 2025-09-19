@@ -1,0 +1,25 @@
+[
+  {
+    "id": "1752329967848",
+    "name": "airbnb",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@openbnb/mcp-server-airbnb",
+      "--ignore-robots-txt"
+    ]
+  },
+  {
+    "id": "1752332567660",
+    "name": "weather",
+    "command": "uv",
+    "args": [
+      "run",
+      "--with",
+      "mcp[cli]",
+      "mcp",
+      "run",
+      "D:\\\\Development\\\\mcp\\\\mymcpserver\\\\weathermcp\\\\server\\\\weather.py"
+    ]
+  }
+]

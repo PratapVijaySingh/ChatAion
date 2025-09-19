@@ -1,0 +1,66 @@
+[
+  {
+    "id": "weather",
+    "name": "Weather MCP",
+    "command": "uv",
+    "args": [
+      "run",
+      "--with",
+      "mcp[cli]",
+      "mcp",
+      "run",
+      "D:\\Development\\mcp\\mymcpserver\\weathermcp\\server\\weather.py"
+    ]
+  },
+  {
+    "id": "filesystem",
+    "name": "File System MCP",
+    "command": "uvx",
+    "args": [
+      "mcp-server-filesystem",
+      "stdio"
+    ]
+  },
+  {
+    "id": "database",
+    "name": "Database MCP", 
+    "command": "uvx",
+    "args": [
+      "mcp-server-sqlite",
+      "stdio"
+    ]
+  },
+  {
+    "id": "web-search",
+    "name": "Web Search MCP",
+    "command": "uvx", 
+    "args": [
+      "mcp-server-web-search",
+      "stdio"
+    ]
+  },
+  {
+    "id": "airbnb",
+    "name": "Airbnb MCP",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@openbnb/mcp-server-airbnb",
+      "--ignore-robots-txt"
+    ]
+  },
+  {
+    "id": "sentiment-analysis",
+    "name": "Sentiment Analysis MCP",
+    "command": "cmd",
+    "args": [
+      "/c", 
+      "npx", 
+      "-y", 
+      "mcp-remote", 
+      "https://vijayps-mcp-sentiment.hf.space/gradio_api/mcp/sse", 
+      "--transport", 
+      "sse-only"
+    ]
+  }
+]
