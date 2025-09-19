@@ -220,10 +220,17 @@ async def chat_send(req: ChatRequest):
         response = await llm.ainvoke(req.message)
         logger.info(f"OpenAI chat response: {response.content!r}")
         
+        # Generate audio if requested
+        audio_url = None
+        if req.use_voice and req.voice_id:
+            audio_filename = await generate_speech(response.content, req.voice_id, openai_key)
+            if audio_filename:
+                audio_url = f"/api/audio/files/{audio_filename}"
+        
         return {
             "response": response.content,
             "animation": "thinking",  # Default animation
-            "audio_url": None  # No audio for now
+            "audio_url": audio_url
         }
     except Exception as e:
         logger.error(f"Chat error: {e}", exc_info=True)
@@ -291,10 +298,17 @@ async def mcp_send(req: ChatRequest):
         response = await agent.run(full_prompt)
         logger.info(f"MCP response: {response!r}")
         
+        # Generate audio if requested
+        audio_url = None
+        if req.use_voice and req.voice_id:
+            audio_filename = await generate_speech(response, req.voice_id, openai_key)
+            if audio_filename:
+                audio_url = f"/api/audio/files/{audio_filename}"
+        
         return {
             "response": response,
             "animation": "thinking",
-            "audio_url": None
+            "audio_url": audio_url
         }
         
     except Exception as e:
