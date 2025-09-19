@@ -298,7 +298,9 @@ async def generate_speech_endpoint(req: dict):
         return {
             "success": True,
             "audio_url": None,  # No audio generated for now
-            "message": "Speech generation not implemented in main backend"
+            "message": "Speech generation not implemented in main backend",
+            "text": text,
+            "voice_id": voice_id
         }
             
     except Exception as e:
