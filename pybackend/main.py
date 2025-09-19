@@ -277,6 +277,34 @@ def get_audio_voices():
         {"voice_id": "shimmer", "name": "Shimmer"}
     ]
 
+@app.post("/api/audio/generate")
+async def generate_speech_endpoint(req: dict):
+    """Generate speech from text"""
+    try:
+        text = req.get("text", "")
+        voice_id = req.get("voice_id", "alloy")
+        openai_key = req.get("openai_key", "")
+        
+        if not text:
+            raise HTTPException(status_code=400, detail="Text is required")
+        
+        if not openai_key:
+            raise HTTPException(status_code=400, detail="OpenAI API key is required")
+        
+        # For now, return a mock response since we don't have TTS implemented in main.py
+        # In a full implementation, this would generate actual speech
+        logger.info(f"Speech generation requested: text={text[:50]}..., voice={voice_id}")
+        
+        return {
+            "success": True,
+            "audio_url": None,  # No audio generated for now
+            "message": "Speech generation not implemented in main backend"
+        }
+            
+    except Exception as e:
+        logger.error(f"Speech generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Speech generation failed: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000) 
