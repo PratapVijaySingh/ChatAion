@@ -32,7 +32,7 @@ AUDIO_DIR = "audio_files"
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
 # Serve static files
-app.mount("/api/audio", StaticFiles(directory=AUDIO_DIR), name="audio")
+app.mount("/api/audio/files", StaticFiles(directory=AUDIO_DIR), name="audio")
 
 class MCP(BaseModel):
     id: str
@@ -347,7 +347,7 @@ async def generate_speech_endpoint(req: dict):
         if audio_filename:
             return {
                 "success": True,
-                "audio_url": f"/api/audio/{audio_filename}",
+                "audio_url": f"/api/audio/files/{audio_filename}",
                 "filename": audio_filename,
                 "text": text,
                 "voice_id": voice_id
