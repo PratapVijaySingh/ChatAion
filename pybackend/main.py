@@ -14,6 +14,7 @@ import tempfile
 import openai
 import time
 import re
+from pdf_utils import extract_text_from_pdf, get_pdf_metadata, is_pdf_file
 
 app = FastAPI()
 
@@ -502,6 +503,59 @@ def get_audio_voices():
         "elevenlabs": [],
         "azure": []
     }
+
+# PDF Processing Endpoints
+@app.post("/api/pdf/extract")
+async def extract_pdf_text(file_path: str):
+    """Extract text from a PDF file"""
+    try:
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="PDF file not found")
+        
+        if not is_pdf_file(file_path):
+            raise HTTPException(status_code=400, detail="File is not a valid PDF")
+        
+        text = extract_text_from_pdf(file_path)
+        if text is None:
+            raise HTTPException(status_code=500, detail="Failed to extract text from PDF")
+        
+        return {
+            "success": True,
+            "text": text,
+            "file_path": file_path
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error extracting PDF text: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/pdf/metadata")
+async def get_pdf_info(file_path: str):
+    """Get metadata from a PDF file"""
+    try:
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="PDF file not found")
+        
+        if not is_pdf_file(file_path):
+            raise HTTPException(status_code=400, detail="File is not a valid PDF")
+        
+        metadata = get_pdf_metadata(file_path)
+        if metadata is None:
+            raise HTTPException(status_code=500, detail="Failed to get PDF metadata")
+        
+        return {
+            "success": True,
+            "metadata": metadata,
+            "file_path": file_path
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting PDF metadata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/audio/generate")
 async def generate_speech_endpoint(req: dict):
