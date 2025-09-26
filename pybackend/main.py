@@ -17,6 +17,7 @@ import re
 from pdf_utils import extract_text_from_pdf, get_pdf_metadata, is_pdf_file
 from python_interpreter import ConstitutionAgent
 from langflow_agent import LangflowAgent
+from direct_langflow import DirectLangflowClient
 
 app = FastAPI()
 
@@ -495,12 +496,12 @@ def get_audio_voices():
     """Audio voices endpoint"""
     return {
         "openai": [
-            {"voice_id": "alloy", "name": "Alloy"},
-            {"voice_id": "echo", "name": "Echo"},
-            {"voice_id": "fable", "name": "Fable"},
-            {"voice_id": "onyx", "name": "Onyx"},
-            {"voice_id": "nova", "name": "Nova"},
-            {"voice_id": "shimmer", "name": "Shimmer"}
+        {"voice_id": "alloy", "name": "Alloy"},
+        {"voice_id": "echo", "name": "Echo"},
+        {"voice_id": "fable", "name": "Fable"},
+        {"voice_id": "onyx", "name": "Onyx"},
+        {"voice_id": "nova", "name": "Nova"},
+        {"voice_id": "shimmer", "name": "Shimmer"}
         ],
         "elevenlabs": [],
         "azure": []
@@ -564,6 +565,9 @@ constitution_agent = ConstitutionAgent()
 
 # Langflow Agent Endpoints
 langflow_agent = LangflowAgent()
+
+# Direct Langflow Client (no MCP)
+direct_langflow = DirectLangflowClient()
 
 @app.post("/api/constitution/execute")
 async def execute_python_code(request: dict):
@@ -765,6 +769,121 @@ async def get_langflow_info():
         }
     except Exception as e:
         logger.error(f"Error getting Langflow info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Direct Langflow API Endpoints (No MCP)
+@app.post("/api/direct-langflow/chat")
+async def direct_langflow_chat(request: dict):
+    """Direct chat with Langflow (no MCP protocol)"""
+    try:
+        message = request.get("message", "")
+        session_id = request.get("session_id", "")
+        
+        if not message.strip():
+            raise HTTPException(status_code=400, detail="Message is required")
+        
+        result = await direct_langflow.chat_direct(message, session_id)
+        
+        return {
+            "success": result["success"],
+            "response": result.get("response", ""),
+            "session_id": result.get("session_id", ""),
+            "execution_time": result.get("execution_time", 0),
+            "raw_outputs": result.get("raw_outputs", {}),
+            "metadata": result.get("metadata", {}),
+            "error": result.get("error")
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error with direct Langflow chat: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/direct-langflow/run")
+async def direct_langflow_run(request: dict):
+    """Direct Langflow flow execution (no MCP protocol)"""
+    try:
+        inputs = request.get("inputs", {})
+        session_id = request.get("session_id", "")
+        
+        if not inputs:
+            raise HTTPException(status_code=400, detail="Inputs are required")
+        
+        result = await direct_langflow.run_flow_direct(inputs, session_id)
+        
+        return {
+            "success": result["success"],
+            "outputs": result.get("outputs", {}),
+            "session_id": result.get("session_id", ""),
+            "execution_time": result.get("execution_time", 0),
+            "metadata": result.get("metadata", {}),
+            "error": result.get("error")
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error with direct Langflow run: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/direct-langflow/health")
+async def direct_langflow_health():
+    """Check direct Langflow server health"""
+    try:
+        result = await direct_langflow.check_connection()
+        return {
+            "success": result["success"],
+            "status": result["status"],
+            "host_url": result["host_url"],
+            "server_info": result.get("server_info", {}),
+            "error": result.get("error")
+        }
+    except Exception as e:
+        logger.error(f"Error checking direct Langflow health: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/direct-langflow/flows")
+async def direct_langflow_flows():
+    """Get available flows directly from Langflow"""
+    try:
+        result = await direct_langflow.get_available_flows_direct()
+        return {
+            "success": result["success"],
+            "flows": result.get("flows", []),
+            "count": result.get("count", 0),
+            "error": result.get("error")
+        }
+    except Exception as e:
+        logger.error(f"Error getting direct Langflow flows: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/direct-langflow/flow-info")
+async def direct_langflow_flow_info():
+    """Get current flow information directly"""
+    try:
+        result = await direct_langflow.get_flow_info_direct()
+        return {
+            "success": result["success"],
+            "flow_info": result.get("flow_info", {}),
+            "flow_id": result.get("flow_id", ""),
+            "error": result.get("error")
+        }
+    except Exception as e:
+        logger.error(f"Error getting direct flow info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/direct-langflow/info")
+async def direct_langflow_info():
+    """Get Direct Langflow Client information"""
+    try:
+        info = direct_langflow.get_client_info()
+        return {
+            "success": True,
+            "info": info
+        }
+    except Exception as e:
+        logger.error(f"Error getting direct Langflow info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/audio/generate")

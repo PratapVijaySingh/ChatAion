@@ -1,6 +1,6 @@
 """
-Langflow Agent for ChatAion
-Integrates with Langflow API for advanced AI workflows
+Direct Langflow API Integration
+Bypasses MCP and calls Langflow API directly
 """
 
 import requests
@@ -14,21 +14,21 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-class LangflowAgent:
+class DirectLangflowClient:
     """
-    Langflow Agent - Integrates with Langflow API for advanced AI workflows
+    Direct Langflow API Client - No MCP, direct API calls
     """
     
     def __init__(self, host_url: str = "http://localhost:7860"):
         """
-        Initialize Langflow Agent
+        Initialize Direct Langflow Client
         
         Args:
             host_url: Langflow server URL
         """
         self.host_url = host_url.rstrip('/')
-        self.session = None
         self.flow_id = "b2636e6f-2c11-4274-b965-5bd98ca40336"
+        self.session = None
         
     async def _get_session(self):
         """Get or create aiohttp session"""
@@ -45,23 +45,27 @@ class LangflowAgent:
             self.session = None
     
     async def check_connection(self) -> Dict[str, Any]:
-        """
-        Check if Langflow server is accessible
-        
-        Returns:
-            Connection status and server info
-        """
+        """Check if Langflow server is accessible"""
         try:
             session = await self._get_session()
             async with session.get(f"{self.host_url}/api/v1/health") as response:
                 if response.status == 200:
-                    data = await response.json()
-                    return {
-                        "success": True,
-                        "status": "connected",
-                        "server_info": data,
-                        "host_url": self.host_url
-                    }
+                    try:
+                        data = await response.json()
+                        return {
+                            "success": True,
+                            "status": "connected",
+                            "server_info": data,
+                            "host_url": self.host_url
+                        }
+                    except:
+                        # If JSON parsing fails, server is running but not Langflow
+                        return {
+                            "success": True,
+                            "status": "connected",
+                            "server_info": {"message": "Server running but not Langflow API"},
+                            "host_url": self.host_url
+                        }
                 else:
                     return {
                         "success": False,
@@ -78,13 +82,146 @@ class LangflowAgent:
                 "host_url": self.host_url
             }
     
-    async def get_flow_info(self) -> Dict[str, Any]:
+    async def chat_direct(self, message: str, session_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        Get information about the specific flow
+        Direct chat with Langflow - no MCP protocol
         
+        Args:
+            message: User message
+            session_id: Optional session ID
+            
         Returns:
-            Flow information
+            Direct response from Langflow
         """
+        try:
+            session = await self._get_session()
+            url = f"{self.host_url}/api/v1/run/{self.flow_id}"
+            
+            payload = {
+                "output_type": "chat",
+                "input_type": "chat", 
+                "input_value": message,
+                "session_id": session_id or str(uuid.uuid4())
+            }
+            
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            async with session.post(url, json=payload, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    # Handle different response formats
+                    if isinstance(data, list):
+                        # If response is a list, take the first item
+                        response_data = data[0] if data else {}
+                    else:
+                        response_data = data
+                    
+                    # Extract text content from Langflow JSON response
+                    response_text = self._extract_langflow_text(response_data)
+                    
+                    # Debug logging
+                    logger.info(f"🔍 Langflow response extraction:")
+                    logger.info(f"  - Raw response_data type: {type(response_data)}")
+                    logger.info(f"  - Raw response_data keys: {list(response_data.keys()) if isinstance(response_data, dict) else 'Not a dict'}")
+                    logger.info(f"  - Full response_data: {response_data}")
+                    logger.info(f"  - Extracted text: {response_text}")
+                    logger.info(f"  - Session ID: {payload['session_id']}")
+                    
+                    return {
+                        "success": True,
+                        "response": response_text,
+                        "session_id": payload["session_id"],
+                        "execution_time": response_data.get("execution_time", 0) if isinstance(response_data, dict) else 0,
+                        "raw_outputs": response_data.get("outputs", {}) if isinstance(response_data, dict) else response_data,
+                        "metadata": {
+                            "flow_id": self.flow_id,
+                            "timestamp": datetime.now().isoformat(),
+                            "host_url": self.host_url,
+                            "method": "direct_api"
+                        }
+                    }
+                else:
+                    error_text = await response.text()
+                    return {
+                        "success": False,
+                        "error": f"HTTP {response.status}: {error_text}",
+                        "session_id": payload["session_id"]
+                    }
+        except Exception as e:
+            logger.error(f"Direct chat failed: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def run_flow_direct(self, inputs: Dict[str, Any], session_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Direct flow execution - no MCP protocol
+        
+        Args:
+            inputs: Input data for the flow
+            session_id: Optional session ID
+            
+        Returns:
+            Direct flow execution results
+        """
+        try:
+            session = await self._get_session()
+            url = f"{self.host_url}/api/v1/run/{self.flow_id}"
+            
+            payload = {
+                "output_type": "chat",
+                "input_type": "chat",
+                "input_value": inputs.get("message", str(inputs)),
+                "session_id": session_id or str(uuid.uuid4())
+            }
+            
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            async with session.post(url, json=payload, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    # Handle different response formats
+                    if isinstance(data, list):
+                        # If response is a list, take the first item
+                        response_data = data[0] if data else {}
+                    else:
+                        response_data = data
+                    
+                    return {
+                        "success": True,
+                        "outputs": response_data.get("outputs", {}) if isinstance(response_data, dict) else response_data,
+                        "session_id": payload["session_id"],
+                        "execution_time": response_data.get("execution_time", 0) if isinstance(response_data, dict) else 0,
+                        "metadata": {
+                            "flow_id": self.flow_id,
+                            "timestamp": datetime.now().isoformat(),
+                            "host_url": self.host_url,
+                            "method": "direct_api"
+                        }
+                    }
+                else:
+                    error_text = await response.text()
+                    return {
+                        "success": False,
+                        "error": f"HTTP {response.status}: {error_text}",
+                        "session_id": payload["session_id"]
+                    }
+        except Exception as e:
+            logger.error(f"Direct flow execution failed: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def get_flow_info_direct(self) -> Dict[str, Any]:
+        """Get flow information directly"""
         try:
             session = await self._get_session()
             url = f"{self.host_url}/api/v1/flows/{self.flow_id}"
@@ -111,177 +248,8 @@ class LangflowAgent:
                 "flow_id": self.flow_id
             }
     
-    async def run_flow_direct(self, message: str, session_id: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Direct flow execution with correct Langflow API format
-        
-        Args:
-            message: User message
-            session_id: Optional session ID
-            
-        Returns:
-            Direct flow execution results
-        """
-        try:
-            session = await self._get_session()
-            url = f"{self.host_url}/api/v1/run/{self.flow_id}"
-            
-            payload = {
-                "output_type": "chat",
-                "input_type": "chat",
-                "input_value": message,
-                "session_id": session_id or str(uuid.uuid4())
-            }
-            
-            headers = {
-                "Content-Type": "application/json"
-            }
-            
-            async with session.post(url, json=payload, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    
-                    # Handle different response formats
-                    if isinstance(data, list):
-                        response_data = data[0] if data else {}
-                    else:
-                        response_data = data
-                    
-                    # Extract text content from Langflow JSON response
-                    response_text = self._extract_langflow_text(response_data)
-                    
-                    # Debug logging
-                    logger.info(f"🔍 Langflow Agent response extraction:")
-                    logger.info(f"  - Raw response_data type: {type(response_data)}")
-                    logger.info(f"  - Raw response_data keys: {list(response_data.keys()) if isinstance(response_data, dict) else 'Not a dict'}")
-                    logger.info(f"  - Full response_data: {response_data}")
-                    logger.info(f"  - Extracted text: {response_text}")
-                    logger.info(f"  - Session ID: {session_id}")
-                    
-                    return {
-                        "success": True,
-                        "outputs": response_data.get("outputs", {}) if isinstance(response_data, dict) else response_data,
-                        "response": response_text,
-                        "session_id": payload["session_id"],
-                        "execution_time": response_data.get("execution_time", 0) if isinstance(response_data, dict) else 0,
-                        "metadata": {
-                            "flow_id": self.flow_id,
-                            "timestamp": datetime.now().isoformat(),
-                            "host_url": self.host_url,
-                            "method": "direct_api"
-                        }
-                    }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "success": False,
-                        "error": f"HTTP {response.status}: {error_text}",
-                        "session_id": payload["session_id"]
-                    }
-        except Exception as e:
-            logger.error(f"Direct flow execution failed: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    async def run_flow(self, inputs: Dict[str, Any], session_id: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Run the Langflow flow with given inputs
-        
-        Args:
-            inputs: Input data for the flow
-            session_id: Optional session ID for conversation continuity
-            
-        Returns:
-            Flow execution results
-        """
-        try:
-            session = await self._get_session()
-            url = f"{self.host_url}/api/v1/run/{self.flow_id}"
-            
-            payload = {
-                "inputs": inputs,
-                "tweaks": {},
-                "session_id": session_id or f"chat_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            }
-            
-            headers = {
-                "Content-Type": "application/json"
-            }
-            
-            async with session.post(url, json=payload, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return {
-                        "success": True,
-                        "outputs": data.get("outputs", {}),
-                        "session_id": payload["session_id"],
-                        "execution_time": data.get("execution_time", 0)
-                    }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "success": False,
-                        "error": f"HTTP {response.status}: {error_text}",
-                        "session_id": payload["session_id"]
-                    }
-        except Exception as e:
-            logger.error(f"Run flow failed: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    async def chat_with_flow(self, message: str, session_id: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Chat with the Langflow flow using a message
-        
-        Args:
-            message: User message
-            session_id: Optional session ID for conversation continuity
-            
-        Returns:
-            Chat response from the flow
-        """
-        try:
-            # Use direct Langflow API format
-            result = await self.run_flow_direct(message, session_id)
-            
-            if result["success"]:
-                outputs = result["outputs"]
-                return {
-                    "success": True,
-                    "response": outputs.get("response", "No response generated"),
-                    "session_id": result["session_id"],
-                    "execution_time": result["execution_time"],
-                    "metadata": {
-                        "flow_id": self.flow_id,
-                        "timestamp": datetime.now().isoformat(),
-                        "host_url": self.host_url
-                    }
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": result["error"],
-                    "session_id": result.get("session_id")
-                }
-                
-        except Exception as e:
-            logger.error(f"Chat with flow failed: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    async def get_available_flows(self) -> Dict[str, Any]:
-        """
-        Get list of available flows from Langflow server
-        
-        Returns:
-            List of available flows
-        """
+    async def get_available_flows_direct(self) -> Dict[str, Any]:
+        """Get available flows directly"""
         try:
             session = await self._get_session()
             url = f"{self.host_url}/api/v1/flows"
@@ -304,39 +272,6 @@ class LangflowAgent:
             return {
                 "success": False,
                 "error": str(e)
-            }
-    
-    async def get_flow_schema(self) -> Dict[str, Any]:
-        """
-        Get the schema/inputs for the current flow
-        
-        Returns:
-            Flow schema information
-        """
-        try:
-            session = await self._get_session()
-            url = f"{self.host_url}/api/v1/flows/{self.flow_id}/schema"
-            
-            async with session.get(url) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return {
-                        "success": True,
-                        "schema": data,
-                        "flow_id": self.flow_id
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "error": f"HTTP {response.status}",
-                        "flow_id": self.flow_id
-                    }
-        except Exception as e:
-            logger.error(f"Get flow schema failed: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "flow_id": self.flow_id
             }
     
     def _extract_langflow_text(self, data):
@@ -470,27 +405,28 @@ class LangflowAgent:
         return "No response generated"
     
     async def close(self):
-        """Close the agent and cleanup resources"""
+        """Close the client and cleanup resources"""
         await self._close_session()
     
-    def get_agent_info(self) -> Dict[str, Any]:
-        """Get information about the Langflow Agent"""
+    def get_client_info(self) -> Dict[str, Any]:
+        """Get information about the Direct Langflow Client"""
         return {
-            "name": "Langflow Agent",
-            "description": "Advanced AI workflows through Langflow integration",
+            "name": "Direct Langflow Client",
+            "description": "Direct API integration with Langflow (no MCP)",
             "host_url": self.host_url,
             "flow_id": self.flow_id,
             "capabilities": [
-                "Chat with Langflow flows",
-                "Execute AI workflows",
+                "Direct chat with Langflow flows",
+                "Direct flow execution",
                 "Session management",
-                "Flow schema inspection",
+                "Flow discovery",
                 "Health monitoring"
             ],
             "endpoints": {
                 "health": f"{self.host_url}/api/v1/health",
                 "flows": f"{self.host_url}/api/v1/flows",
                 "run_flow": f"{self.host_url}/api/v1/run/{self.flow_id}",
-                "flow_schema": f"{self.host_url}/api/v1/flows/{self.flow_id}/schema"
-            }
+                "flow_info": f"{self.host_url}/api/v1/flows/{self.flow_id}"
+            },
+            "method": "direct_api"
         }
