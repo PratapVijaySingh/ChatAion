@@ -15,6 +15,7 @@ import openai
 import time
 import re
 from pdf_utils import extract_text_from_pdf, get_pdf_metadata, is_pdf_file
+from python_interpreter import ConstitutionAgent
 
 app = FastAPI()
 
@@ -555,6 +556,83 @@ async def get_pdf_info(file_path: str):
         raise
     except Exception as e:
         logger.error(f"Error getting PDF metadata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Constitution Agent Endpoints
+constitution_agent = ConstitutionAgent()
+
+@app.post("/api/constitution/execute")
+async def execute_python_code(request: dict):
+    """Execute Python code with constitutional principles"""
+    try:
+        code = request.get("code", "")
+        context = request.get("context", "")
+        
+        if not code.strip():
+            raise HTTPException(status_code=400, detail="Python code is required")
+        
+        result = constitution_agent.execute_python(code, context)
+        
+        return {
+            "success": result["success"],
+            "output": result["output"],
+            "error": result["error"],
+            "constitutional_guidance": result["constitutional_guidance"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error executing Python code: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/constitution/info")
+async def get_constitution_info():
+    """Get Constitution Agent information"""
+    try:
+        info = constitution_agent.get_constitution_info()
+        return {
+            "success": True,
+            "info": info
+        }
+    except Exception as e:
+        logger.error(f"Error getting constitution info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/constitution/modules")
+async def get_available_modules():
+    """Get available Python modules"""
+    try:
+        modules = constitution_agent.interpreter.get_available_modules()
+        return {
+            "success": True,
+            "modules": modules
+        }
+    except Exception as e:
+        logger.error(f"Error getting modules: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/constitution/add-module")
+async def add_module(request: dict):
+    """Add a new module to allowed modules"""
+    try:
+        module_name = request.get("module_name", "")
+        
+        if not module_name:
+            raise HTTPException(status_code=400, detail="Module name is required")
+        
+        success = constitution_agent.interpreter.add_module(module_name)
+        
+        return {
+            "success": success,
+            "module_name": module_name,
+            "message": f"Module {module_name} {'added successfully' if success else 'failed to add'}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding module: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/audio/generate")
