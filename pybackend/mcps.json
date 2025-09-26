@@ -62,22 +62,5 @@
       "--transport", 
       "sse-only"
     ]
-  },
-  {
-    "id": "constitution-agent",
-    "name": "Constitution Agent",
-    "description": "Python code execution with constitutional principles",
-    "command": "python",
-    "args": [
-      "constitution_server.py"
-    ],
-    "capabilities": [
-      "Safe Python code execution",
-      "Mathematical calculations", 
-      "Data analysis",
-      "Visualization",
-      "Web requests",
-      "File operations"
-    ]
   }
 ]
