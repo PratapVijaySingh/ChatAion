@@ -79,25 +79,5 @@
       "Web requests",
       "File operations"
     ]
-  },
-  {
-    "id": "langflow-agent",
-    "name": "Langflow Agent",
-    "description": "Advanced AI workflows through Langflow integration",
-    "command": "python",
-    "args": [
-      "langflow_server.py"
-    ],
-    "capabilities": [
-      "Chat with Langflow flows",
-      "Execute AI workflows",
-      "Session management",
-      "Flow schema inspection",
-      "Health monitoring"
-    ],
-    "config": {
-      "host_url": "http://localhost:7860",
-      "flow_id": "b2636e6f-2c11-4274-b965-5bd98ca40336"
-    }
   }
 ]
