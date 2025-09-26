@@ -16,6 +16,7 @@ import time
 import re
 from pdf_utils import extract_text_from_pdf, get_pdf_metadata, is_pdf_file
 from python_interpreter import ConstitutionAgent
+from langflow_agent import LangflowAgent
 
 app = FastAPI()
 
@@ -561,6 +562,9 @@ async def get_pdf_info(file_path: str):
 # Constitution Agent Endpoints
 constitution_agent = ConstitutionAgent()
 
+# Langflow Agent Endpoints
+langflow_agent = LangflowAgent()
+
 @app.post("/api/constitution/execute")
 async def execute_python_code(request: dict):
     """Execute Python code with constitutional principles"""
@@ -633,6 +637,134 @@ async def add_module(request: dict):
         raise
     except Exception as e:
         logger.error(f"Error adding module: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Langflow Agent Endpoints
+@app.post("/api/langflow/chat")
+async def chat_with_langflow(request: dict):
+    """Chat with Langflow AI workflows"""
+    try:
+        message = request.get("message", "")
+        session_id = request.get("session_id", "")
+        
+        if not message.strip():
+            raise HTTPException(status_code=400, detail="Message is required")
+        
+        result = await langflow_agent.chat_with_flow(message, session_id)
+        
+        return {
+            "success": result["success"],
+            "response": result.get("response", ""),
+            "session_id": result.get("session_id", ""),
+            "execution_time": result.get("execution_time", 0),
+            "metadata": result.get("metadata", {}),
+            "error": result.get("error")
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error chatting with Langflow: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/langflow/run")
+async def run_langflow_flow(request: dict):
+    """Run a Langflow flow with custom inputs"""
+    try:
+        inputs = request.get("inputs", {})
+        session_id = request.get("session_id", "")
+        
+        if not inputs:
+            raise HTTPException(status_code=400, detail="Inputs are required")
+        
+        result = await langflow_agent.run_flow(inputs, session_id)
+        
+        return {
+            "success": result["success"],
+            "outputs": result.get("outputs", {}),
+            "session_id": result.get("session_id", ""),
+            "execution_time": result.get("execution_time", 0),
+            "error": result.get("error")
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error running Langflow flow: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/langflow/health")
+async def check_langflow_health():
+    """Check Langflow server health"""
+    try:
+        result = await langflow_agent.check_connection()
+        return {
+            "success": result["success"],
+            "status": result["status"],
+            "host_url": result["host_url"],
+            "server_info": result.get("server_info", {}),
+            "error": result.get("error")
+        }
+    except Exception as e:
+        logger.error(f"Error checking Langflow health: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/langflow/flows")
+async def get_langflow_flows():
+    """Get available Langflow flows"""
+    try:
+        result = await langflow_agent.get_available_flows()
+        return {
+            "success": result["success"],
+            "flows": result.get("flows", []),
+            "count": result.get("count", 0),
+            "error": result.get("error")
+        }
+    except Exception as e:
+        logger.error(f"Error getting Langflow flows: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/langflow/flow-info")
+async def get_langflow_flow_info():
+    """Get information about the current flow"""
+    try:
+        result = await langflow_agent.get_flow_info()
+        return {
+            "success": result["success"],
+            "flow_info": result.get("flow_info", {}),
+            "flow_id": result.get("flow_id", ""),
+            "error": result.get("error")
+        }
+    except Exception as e:
+        logger.error(f"Error getting flow info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/langflow/flow-schema")
+async def get_langflow_flow_schema():
+    """Get the schema/inputs for the current flow"""
+    try:
+        result = await langflow_agent.get_flow_schema()
+        return {
+            "success": result["success"],
+            "schema": result.get("schema", {}),
+            "flow_id": result.get("flow_id", ""),
+            "error": result.get("error")
+        }
+    except Exception as e:
+        logger.error(f"Error getting flow schema: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/langflow/info")
+async def get_langflow_info():
+    """Get Langflow Agent information"""
+    try:
+        info = langflow_agent.get_agent_info()
+        return {
+            "success": True,
+            "info": info
+        }
+    except Exception as e:
+        logger.error(f"Error getting Langflow info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/audio/generate")
