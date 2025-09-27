@@ -17,6 +17,7 @@ import re
 from pdf_utils import extract_text_from_pdf, get_pdf_metadata, is_pdf_file
 from python_interpreter import ConstitutionAgent
 from direct_langflow import DirectLangflowClient
+from langflow_registry import LangflowFlowRegistry
 
 app = FastAPI()
 
@@ -563,8 +564,18 @@ async def get_pdf_info(file_path: str):
 constitution_agent = ConstitutionAgent()
 
 
-# Direct Langflow Client (no MCP)
-direct_langflow = DirectLangflowClient()
+# Langflow Flow Registry
+flow_registry = LangflowFlowRegistry()
+
+# Direct Langflow Client (no MCP) - Initialize with default flow from registry
+default_flow = flow_registry.get_active_flow()
+if default_flow:
+    direct_langflow = DirectLangflowClient(
+        host_url=default_flow["host_url"], 
+        flow_id=default_flow["id"]
+    )
+else:
+    direct_langflow = DirectLangflowClient()
 
 @app.post("/api/constitution/execute")
 async def execute_python_code(request: dict):
@@ -789,6 +800,238 @@ async def generate_speech_endpoint(req: dict):
     except Exception as e:
         logger.error(f"Speech generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Speech generation failed: {str(e)}")
+
+# Langflow Flow Registry Endpoints
+@app.get("/api/langflow-flows")
+async def get_all_flows():
+    """Get all registered Langflow flows"""
+    try:
+        result = flow_registry.get_all_flows()
+        # Add flow keys to each flow for frontend use
+        flows_with_keys = {}
+        for key, flow in result.get("flows", {}).items():
+            flow_with_key = {**flow, "key": key}
+            flows_with_keys[key] = flow_with_key
+        
+        return {
+            "success": result["success"],
+            "flows": flows_with_keys,
+            "count": result["count"],
+            "active_count": result["active_count"]
+        }
+    except Exception as e:
+        logger.error(f"Error getting flows: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/langflow-flows/register")
+async def register_flow(request: dict):
+    """Register a new Langflow flow"""
+    try:
+        flow_id = request.get("flow_id", "")
+        name = request.get("name", "")
+        description = request.get("description", "")
+        host_url = request.get("host_url", "http://localhost:7860")
+        category = request.get("category", "General")
+        
+        if not flow_id or not name:
+            raise HTTPException(status_code=400, detail="flow_id and name are required")
+        
+        result = flow_registry.register_flow(flow_id, name, description, host_url, category)
+        if result["success"]:
+            # Add the flow key to the response
+            flow_key = name.lower().replace(" ", "_").replace("-", "_")
+            result["flow_key"] = flow_key
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error registering flow: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/langflow-flows/{flow_key}")
+async def get_flow(flow_key: str):
+    """Get a specific flow by key"""
+    try:
+        flow = flow_registry.get_flow(flow_key)
+        if not flow:
+            raise HTTPException(status_code=404, detail=f"Flow '{flow_key}' not found")
+        return {"success": True, "flow": flow}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting flow: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/langflow-flows/{flow_key}")
+async def update_flow(flow_key: str, request: dict):
+    """Update an existing flow"""
+    try:
+        updates = {k: v for k, v in request.items() if k in ["name", "description", "host_url", "category", "is_active"]}
+        if not updates:
+            raise HTTPException(status_code=400, detail="No valid updates provided")
+        
+        result = flow_registry.update_flow(flow_key, updates)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating flow: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/langflow-flows/{flow_key}")
+async def delete_flow(flow_key: str):
+    """Delete a flow from registry"""
+    try:
+        result = flow_registry.delete_flow(flow_key)
+        return result
+    except Exception as e:
+        logger.error(f"Error deleting flow: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/langflow-flows/{flow_key}/activate")
+async def activate_flow(flow_key: str):
+    """Activate a specific flow and update the client"""
+    try:
+        # Get flow details
+        flow = flow_registry.get_flow(flow_key)
+        if not flow:
+            raise HTTPException(status_code=404, detail=f"Flow '{flow_key}' not found")
+        
+        # Update client configuration
+        direct_langflow.set_flow_id(flow["id"])
+        direct_langflow.set_host_url(flow["host_url"])
+        
+        # Clear current session when switching flows
+        direct_langflow.clear_session()
+        
+        # Update registry
+        result = flow_registry.set_active_flow(flow_key)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error activating flow: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/langflow-flows/{flow_key}/test")
+async def test_flow_connection(flow_key: str):
+    """Test connection to a specific flow"""
+    try:
+        result = flow_registry.test_flow_connection(flow_key)
+        return result
+    except Exception as e:
+        logger.error(f"Error testing flow connection: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/langflow-flows/categories")
+async def get_flow_categories():
+    """Get all flow categories"""
+    try:
+        categories = flow_registry.get_categories()
+        return {"success": True, "categories": categories}
+    except Exception as e:
+        logger.error(f"Error getting categories: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/langflow-flows/search")
+async def search_flows(query: str):
+    """Search flows by name or description"""
+    try:
+        if not query:
+            raise HTTPException(status_code=400, detail="Query parameter is required")
+        
+        flows = flow_registry.search_flows(query)
+        return {"success": True, "flows": flows, "count": len(flows)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error searching flows: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/langflow-flows/active")
+async def get_active_flow():
+    """Get the currently active flow"""
+    try:
+        active_flow = flow_registry.get_active_flow()
+        if not active_flow:
+            return {"success": False, "message": "No active flow found"}
+        
+        return {"success": True, "flow": active_flow}
+    except Exception as e:
+        logger.error(f"Error getting active flow: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/langflow-flows/current-config")
+async def get_current_flow_config():
+    """Get the current flow configuration from the client"""
+    try:
+        config = direct_langflow.get_current_config()
+        return {"success": True, "config": config}
+    except Exception as e:
+        logger.error(f"Error getting current flow config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Langflow Session Management Endpoints
+@app.post("/api/langflow-session/start")
+async def start_langflow_session():
+    """Start a new Langflow session"""
+    try:
+        session_id = direct_langflow.start_new_session()
+        return {
+            "success": True,
+            "session_id": session_id,
+            "message": "New session started"
+        }
+    except Exception as e:
+        logger.error(f"Error starting session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/langflow-session/current")
+async def get_current_session():
+    """Get the current session ID"""
+    try:
+        session_id = direct_langflow.get_current_session_id()
+        return {
+            "success": True,
+            "session_id": session_id,
+            "has_session": session_id is not None
+        }
+    except Exception as e:
+        logger.error(f"Error getting current session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/langflow-session/clear")
+async def clear_langflow_session():
+    """Clear the current Langflow session"""
+    try:
+        direct_langflow.clear_session()
+        return {
+            "success": True,
+            "message": "Session cleared"
+        }
+    except Exception as e:
+        logger.error(f"Error clearing session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/langflow-session/set")
+async def set_langflow_session(request: dict):
+    """Set a specific session ID"""
+    try:
+        session_id = request.get("session_id")
+        if not session_id:
+            raise HTTPException(status_code=400, detail="session_id is required")
+        
+        direct_langflow.set_session_id(session_id)
+        return {
+            "success": True,
+            "session_id": session_id,
+            "message": "Session ID set"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error setting session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

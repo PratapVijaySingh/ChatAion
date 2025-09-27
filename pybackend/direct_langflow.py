@@ -19,16 +19,18 @@ class DirectLangflowClient:
     Direct Langflow API Client - No MCP, direct API calls
     """
     
-    def __init__(self, host_url: str = "http://localhost:7860"):
+    def __init__(self, host_url: str = "http://localhost:7860", flow_id: str = None):
         """
         Initialize Direct Langflow Client
         
         Args:
             host_url: Langflow server URL
+            flow_id: Specific flow ID to use (optional)
         """
         self.host_url = host_url.rstrip('/')
-        self.flow_id = "b2636e6f-2c11-4274-b965-5bd98ca40336"
+        self.flow_id = flow_id or "b2636e6f-2c11-4274-b965-5bd98ca40336"  # Default fallback
         self.session = None
+        self.current_session_id = None  # Track current session ID
         
     async def _get_session(self):
         """Get or create aiohttp session"""
@@ -43,6 +45,45 @@ class DirectLangflowClient:
         if self.session:
             await self.session.close()
             self.session = None
+    
+    def set_flow_id(self, flow_id: str):
+        """Set a new flow ID for this client"""
+        self.flow_id = flow_id
+        logger.info(f"Flow ID updated to: {flow_id}")
+    
+    def set_host_url(self, host_url: str):
+        """Set a new host URL for this client"""
+        self.host_url = host_url.rstrip('/')
+        logger.info(f"Host URL updated to: {self.host_url}")
+    
+    def get_current_config(self) -> Dict[str, Any]:
+        """Get current client configuration"""
+        return {
+            "host_url": self.host_url,
+            "flow_id": self.flow_id,
+            "session_active": self.session is not None,
+            "current_session_id": self.current_session_id
+        }
+    
+    def start_new_session(self) -> str:
+        """Start a new session and return the session ID"""
+        self.current_session_id = str(uuid.uuid4())
+        logger.info(f"Started new session: {self.current_session_id}")
+        return self.current_session_id
+    
+    def get_current_session_id(self) -> Optional[str]:
+        """Get the current session ID"""
+        return self.current_session_id
+    
+    def set_session_id(self, session_id: str):
+        """Set a specific session ID"""
+        self.current_session_id = session_id
+        logger.info(f"Set session ID: {session_id}")
+    
+    def clear_session(self):
+        """Clear the current session"""
+        self.current_session_id = None
+        logger.info("Cleared current session")
     
     async def check_connection(self) -> Dict[str, Any]:
         """Check if Langflow server is accessible"""
@@ -88,7 +129,7 @@ class DirectLangflowClient:
         
         Args:
             message: User message
-            session_id: Optional session ID
+            session_id: Optional session ID (if None, uses current session or creates new one)
             
         Returns:
             Direct response from Langflow
@@ -97,11 +138,18 @@ class DirectLangflowClient:
             session = await self._get_session()
             url = f"{self.host_url}/api/v1/run/{self.flow_id}"
             
+            # Use provided session_id, current session, or create new one
+            if session_id:
+                self.current_session_id = session_id
+            elif not self.current_session_id:
+                self.current_session_id = str(uuid.uuid4())
+                logger.info(f"Created new session: {self.current_session_id}")
+            
             payload = {
                 "output_type": "chat",
                 "input_type": "chat", 
                 "input_value": message,
-                "session_id": session_id or str(uuid.uuid4())
+                "session_id": self.current_session_id
             }
             
             headers = {
@@ -133,7 +181,7 @@ class DirectLangflowClient:
                     return {
                         "success": True,
                         "response": response_text,
-                        "session_id": payload["session_id"],
+                        "session_id": self.current_session_id,
                         "execution_time": response_data.get("execution_time", 0) if isinstance(response_data, dict) else 0,
                         "raw_outputs": response_data.get("outputs", {}) if isinstance(response_data, dict) else response_data,
                         "metadata": {

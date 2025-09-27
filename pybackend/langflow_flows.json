@@ -1,0 +1,28 @@
+{
+  "flows": {
+    "mytest": {
+      "id": "bdad461a-0654-45e7-9e38-14fc48fb2063",
+      "name": "MyTest",
+      "description": "Just for startup",
+      "host_url": "http://localhost:7860",
+      "category": "Technical",
+      "is_active": true,
+      "created_at": "2025-09-26T17:36:30.372081",
+      "last_used": "2025-09-26T22:20:11.699310",
+      "usage_count": 9
+    },
+    "india_consitution": {
+      "id": "b2636e6f-2c11-4274-b965-5bd98ca40336",
+      "name": "India-Consitution",
+      "description": "India Constitution  helper AI assistant for individuals",
+      "host_url": "http://localhost:7860",
+      "category": "Creative",
+      "is_active": true,
+      "created_at": "2025-09-26T17:45:51.209967",
+      "last_used": "2025-09-26T22:13:30.627848",
+      "usage_count": 5
+    }
+  },
+  "last_updated": "2025-09-26T22:20:11.699310",
+  "version": "1.0.0"
+}
